@@ -1,9 +1,9 @@
+#Arquivos de cache do python
 __pycache__/
 *.py[codz]
 *$py.class
 
-.ipynb_checkpoints
-
+#Ambientes virtuais
 .env
 .envrc
 .venv
@@ -13,4 +13,8 @@ ENV/
 env.bak/
 venv.bak/
 
+#Jupyter Notebook
+.ipynb_checkpoints
+
+#Vscode
 .vscode/
