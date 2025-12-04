@@ -1,0 +1,16 @@
+__pycache__/
+*.py[codz]
+*$py.class
+
+.ipynb_checkpoints
+
+.env
+.envrc
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+.vscode/
