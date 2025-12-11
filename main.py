@@ -58,7 +58,7 @@ class GraphMatching:
         
     def generate_report(self):
         if self.matching:
-            # self._print_matching_matrix() # Comentei para não poluir o terminal rodando 4 vezes, descomente se quiser ver a lista completa 4 vezes
+            self._print_matching_matrix()
             self._calculate_preference_stats()
             
     def _print_matching_matrix(self):
