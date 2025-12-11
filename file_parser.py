@@ -7,6 +7,7 @@ class Project:
         self.min_grade = min_grade
         self.min_students = 1
         self.preference_list = []
+        self.proposal_index = 0
         
 class Student:
     def __init__(self, code, preferences, grade):
