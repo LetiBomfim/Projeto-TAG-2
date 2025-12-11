@@ -19,7 +19,6 @@ class GraphVisualizer:
         self.color_active = "#128118"
         self.color_temporary = "#00A79B"
         self.color_rejection = "#DF0707"
-        self.color_neutral = "#ACABAB"
 
     def create_bipartite_graph(self):
         G = nx.Graph()
@@ -38,99 +37,112 @@ class GraphVisualizer:
         
         return G, students_nodes, project_nodes
 
-    def animate_matching(self, matching_data):
+    def animate_matching(self, matching_data, samples=10):
+        if not matching_data:
+            raise ValueError("matching_data vazio")
+
         G, students_nodes, project_nodes = self.create_bipartite_graph()
 
         pos = nx.bipartite_layout(G, students_nodes, scale=2)
 
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-        fig.suptitle("Visuzalização do Emparelhamento Estável", fontsize=16, fontweight="bold")
+        fig = plt.figure(figsize=(14, 9))
+        gs = fig.add_gridspec(2, 2, width_ratios=[3, 1], height_ratios=[3, 1], hspace=0.35, wspace=0.25)
+        ax1 = fig.add_subplot(gs[0, 0])
+        ax2 = fig.add_subplot(gs[0, 1])
+        ax3 = fig.add_subplot(gs[1, 0])
+        ax4 = fig.add_subplot(gs[1, 1])
 
-        def update(frame):
-            for ax in axes.flat:
+        fig.suptitle("Visualização do Emparelhamento Estável", fontsize=16, fontweight="bold")
+
+        n = len(matching_data)
+        samples = max(1, min(samples, n))
+        indices = np.unique(np.linspace(0, n - 1, samples, dtype=int)).tolist()
+
+        legend_elements = [
+            mpatches.Patch(color=self.color_active, label="Proposta Ativa"),
+            mpatches.Patch(color=self.color_temporary, label="Emparelhamento Temporário"),
+            mpatches.Patch(color=self.color_rejection, label="Rejeição"),
+        ]
+
+        def update(frame_index):
+            data = matching_data[frame_index]
+            iteration = data.get("iteration", frame_index)
+            proposals = set(data.get("proposals", []))
+            temp_matches = set(data.get("temporary_matches", []))
+            rejections = set(data.get("rejections", []))
+
+            active_edges = proposals | temp_matches | rejections
+
+            for ax in (ax1, ax2, ax3, ax4):
                 ax.clear()
 
-                if frame >= len(matching_data):
-                    return
-                
-                data = matching_data[frame]
-                iteration = data["iteration"]
-                proposals = data.get("proposals", [])
-                temp_matches = data.get("temporary_matches", [])
-                rejections = data.get("rejections", [])
+            ax1.set_title(f"Iteração {iteration+1} (mostrar {indices.index(frame_index)+1}/{len(indices)})", fontweight="bold")
 
-                ax1 = axes[0, 0]
-                ax1.set_title(f"Iteração {iteration+1}/10", fontweight="bold")
+            nx.draw_networkx_nodes(G, pos, nodelist=students_nodes, node_color="#FFD93D", node_size=900, ax=ax1)
+            nx.draw_networkx_nodes(G, pos, nodelist=project_nodes, node_color="#83006D", node_size=900, ax=ax1)
 
-                nx.draw_networkx_nodes(G, pos, nodelist=students_nodes, node_color="#FFD93D", node_size=800, label="Estudantes", ax=ax1)
-                nx.draw_networkx_nodes(G, pos, nodelist=project_nodes, node_color="#83006D", node_size=800, label="Projetos", ax=ax1)
-
-                edge_colors = []
-                edge_widths = []
-
-                for edge in G.edges():
+            #Desenha apenas arestas com interação
+            edge_colors = []
+            edge_widths = []
+            edges_to_draw = []
+            
+            for edge in G.edges():
+                if edge in active_edges or (edge[1], edge[0]) in active_edges:
+                    edges_to_draw.append(edge)
+                    
                     if edge in proposals or (edge[1], edge[0]) in proposals:
                         edge_colors.append(self.color_active)
-                        edge_widths.append(3)
+                        edge_widths.append(3.5)
                     elif edge in temp_matches or (edge[1], edge[0]) in temp_matches:
                         edge_colors.append(self.color_temporary)
-                        edge_widths.append(3)
+                        edge_widths.append(3.0)
                     elif edge in rejections or (edge[1], edge[0]) in rejections:
                         edge_colors.append(self.color_rejection)
-                        edge_widths.append(2)
-                    else:
-                        edge_colors.append(self.color_neutral)
-                        edge_widths.append(1)
+                        edge_widths.append(2.0)
 
-                nx.draw_networkx_edges(G, pos, edge_color=edge_colors, width=edge_widths, ax=ax1, alpha=0.7)
-                nx.draw_networkx_labels(G, pos, font_size=10, font_weight="bold", ax=ax1)
+            nx.draw_networkx_edges(G, pos, edgelist=edges_to_draw, edge_color=edge_colors, 
+                                   width=edge_widths, ax=ax1, alpha=0.9)
 
-            legend_elements = [
-                mpatches.Patch(color=self.color_active, label="Proposta Ativa"),
-                mpatches.Patch(color=self.color_temporary, label="Emparelhamento Temporário"),
-                mpatches.Patch(color=self.color_rejection, label="Rejeição"),
-                mpatches.Patch(color=self.color_neutral, label="Sem Interação")
-            ]
-
-            ax1.legend(handles=legend_elements, loc="upper left", fontsize=9)
+            nx.draw_networkx_labels(G, pos, font_size=9, font_weight="bold", ax=ax1)
+            
             ax1.axis("off")
-
-            ax2 = axes[0, 1]
+            ax1.legend(handles=legend_elements, loc="upper left", fontsize=8)
+            
             ax2.set_title("Histórico de Propostas", fontweight="bold")
             ax2.axis("off")
+            history_lines = []
             
-            history_text = "Iterações Anteriores:\n"
-            for i, prev_data in enumerate(matching_data[:iteration+1]):
-                history_text += f"Iteração {i+1}: {len(prev_data.get('proposals', []))} propostas\n"
+            for i, idx in enumerate(indices):
+                snap = matching_data[idx]
+                history_lines.append(f"{i+1}. it {snap.get('iteration', idx)+1}: {len(snap.get('proposals', []))} propostas")
             
-            ax2.text(0.05, 0.95, history_text, transform=ax2.transAxes, fontsize=10, verticalalignment="top", family="monospace",
-                    bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
-            
-            ax3 = axes[1, 0]
-            ax3.set_title(f"Estatísticas - Iteração {iteration + 1}", fontweight="bold")
+            ax2.text(0.02, 0.98, "\n".join(history_lines), transform=ax2.transAxes,
+                     fontsize=10, verticalalignment="top", family="monospace",
+                     bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.6))
+
+            ax3.set_title("Estatísticas", fontweight="bold")
             ax3.axis("off")
-            
-            stats_text = f"""
-            Propostas ativas: {len(proposals)}
-            Emparelhamentos temporários: {len(temp_matches)}
-            Rejeições: {len(rejections)}"""
-            
-            ax3.text(0.05, 0.95, stats_text, transform=ax3.transAxes, 
-                    fontsize=11, verticalalignment="top", family="monospace",
-                    bbox=dict(boxstyle="round", facecolor="lightblue", alpha=0.5))
-            
-            ax4 = axes[1, 1]
+            stats_text = (f"Propostas ativas: {len(proposals)}\n"
+                          f"Emparelhamentos temporários: {len(temp_matches)}\n"
+                          f"Rejeições: {len(rejections)}")
+            ax3.text(0.02, 0.98, stats_text, transform=ax3.transAxes,
+                     fontsize=11, verticalalignment="top", family="monospace",
+                     bbox=dict(boxstyle="round", facecolor="lightblue", alpha=0.6))
+
             ax4.set_title("Emparelhamentos Atuais", fontweight="bold")
             ax4.axis("off")
-            
+
             current_matching = data.get("final_matching", {})
-            matching_text = "Emparelhamentos Confirmados:\n"
-            for student_id, project_id in sorted(current_matching.items()):
-                matching_text += f"Estudante {student_id} → Projeto {project_id}\n"
+            matching_lines = [f"{s} → {p}" for s, p in sorted(current_matching.items())]
             
-            ax4.text(0.05, 0.95, matching_text, transform=ax4.transAxes, fontsize=10, verticalalignment="top", family="monospace", bbox=dict(boxstyle="round", facecolor="lightgreen", alpha=0.5))
-        
-        anim = FuncAnimation(fig, update, frames=len(matching_data), repeat=True, interval=1000)
+            if not matching_lines:
+                matching_lines = ["(Nenhum emparelhamento confirmado)"]
+            
+            ax4.text(0.02, 0.98, "\n".join(matching_lines), transform=ax4.transAxes,
+                     fontsize=10, verticalalignment="top", family="monospace",
+                     bbox=dict(boxstyle="round", facecolor="lightgreen", alpha=0.6))
+
+        anim = FuncAnimation(fig, update, frames=indices, repeat=True, interval=1000)
         
         plt.tight_layout()
         plt.show()
