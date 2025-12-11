@@ -35,6 +35,8 @@ class GraphMatching:
 
         # Executa o matching com os parâmetros novos
         self.matching = self.algorithm.match(proposer_type=proposer_type, random_order=random_order)
+
+        self.last_run_params = (proposer_type, random_order)
             
         # Pega estatísticas
         stats = self.algorithm.get_matching_stats()
@@ -45,9 +47,14 @@ class GraphMatching:
         self.generate_report()
 
     def visualize_process(self, iterations=10):
-        # Visualiza o estado atual do algoritmo (do último cenário rodado)
+        if not hasattr(self, "last_run_params"):
+            raise RuntimeError("Nenhum cenário anterior encontrado")
+
+        proposer_type, random_order = self.last_run_params
+        matching, history = self.algorithm.match(proposer_type=proposer_type, random_order=random_order, collect_history=True)
+
         visualizer = GraphVisualizer(self.students, self.projects, self.algorithm)
-        visualizer.animate_matching(iterations)
+        visualizer.animate_matching(history)
         
     def generate_report(self):
         if self.matching:
@@ -132,4 +139,4 @@ if __name__ == "__main__":
     graph.run_scenario(proposer_type="project", random_order=True)
 
     # Opcional: Visualizar o processo do último cenário rodado
-    # graph.visualize_process()
+    graph.visualize_process()

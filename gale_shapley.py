@@ -31,7 +31,7 @@ class GaleShapley:
             student.proposal_index = 0
             student.matched_project = None
 
-    def match(self, proposer_type="student", random_order=False, max_iterations=300):
+    def match(self, proposer_type="student", random_order=False, max_iterations=500, collect_history=False):
         """
         Método principal que direciona para a variação correta do algoritmo.
         :param proposer_type: 'student' (Orientado a Aluno) ou 'project' (Orientado a Projeto)
@@ -41,22 +41,31 @@ class GaleShapley:
         self.reset_state()
         
         if proposer_type == "student":
-            return self._match_student_optimal(random_order, max_iterations)
+            result = self._match_student_optimal(random_order, max_iterations, collect_history)
         elif proposer_type == "project":
-            return self._match_project_optimal(random_order, max_iterations)
+            result = self._match_project_optimal(random_order, max_iterations, collect_history)
         else:
             raise ValueError("Tipo de proponente desconhecido. Use 'student' ou 'project'.")
+
+        #Para visualização
+        if collect_history:
+            return result
+        else:
+            return result
 
     # =========================================================================
     # VARIAÇÃO 1: STUDENT-OPTIMAL (O código original, adaptado)
     # =========================================================================
-    def _match_student_optimal(self, random_order, max_iterations):
+    def _match_student_optimal(self, random_order, max_iterations, collect_history=False):
         # Fila de alunos livres (convertido para lista para permitir random.choice)
         self.free_students = list(self.students.keys())
 
         iteration = 0
+        matching_data = []
         while self.free_students and iteration < max_iterations:
             
+            start_proposals_len = len(self.proposals_history)
+
             # --- Lógica de Seleção (Sequencial ou Aleatória) ---
             if random_order:
                 # Escolhe um aleatório da lista e remove
@@ -107,20 +116,48 @@ class GaleShapley:
                     # Aluno não conseguiu vaga em nenhuma preferência (esgotou lista)
                     pass
 
+            if collect_history:
+                new_proposals = self.proposals_history[start_proposals_len:]
+                proposals_edges = [(f"S{str(p["student"])}", f"P{str(p["project"])}") for p in new_proposals if p.get("type") == "active"]
+                temp_matches_edges = [(f"S{str(s)}", f"P{str(p)}") for s, p in self.temporary_matching.items()]
+                rejections_edges = [(f"S{str(s)}", f"P{str(p)}") for s, p in self.rejections]
+                final_matching_map = {f"S{str(s)}": f"P{str(p)}" for s, p in self.temporary_matching.items()}
+
+                matching_data.append({
+                    "iteration": iteration,
+                    "proposals": proposals_edges,
+                    "temporary_matches": temp_matches_edges,
+                    "rejections": rejections_edges,
+                    "final_matching": final_matching_map
+                })
+
             iteration += 1
 
         print(f"Algoritmo (Student-Optimal | Random={random_order}) convergiu em {iteration} iterações")
         self._finalize_matching()
+
+        if collect_history:
+            final_temp = {f"S{str(s)}": f"P{str(p)}" for s, p in self.temporary_matching.items()}
+            matching_data.append({
+                "iteration": iteration,
+                "proposals": [(f"S{str(p["student"])}", f"P{str(p["project"])}") for p in self.proposals_history if p.get("type")=="active"],
+                "temporary_matches": [(f"S{str(s)}", f"P{str(p)}") for s, p in self.temporary_matching.items()],
+                "rejections": [(f"S{str(s)}", f"P{str(p)}") for s, p in self.rejections],
+                "final_matching": final_temp
+            })
+            return self.matching, matching_data
+
         return self.matching
 
     # =========================================================================
     # VARIAÇÃO 2: PROJECT-OPTIMAL (Nova implementação)
     # =========================================================================
-    def _match_project_optimal(self, random_order, max_iterations):
+    def _match_project_optimal(self, random_order, max_iterations, collect_history=False):
         """
         Nesta versão, os PROJETOS propõem vagas aos alunos.
         """
         iteration = 0
+        matching_data = []
         
         # Função auxiliar para identificar projetos que ainda querem propor:
         # 1. Ainda têm vagas livres.
@@ -135,6 +172,8 @@ class GaleShapley:
         active_projects = get_active_projects()
 
         while active_projects and iteration < max_iterations:
+            start_proposals_len = len(self.proposals_history)
+
             # Seleção do Projeto Proponente
             if random_order:
                 project_code = random.choice(active_projects)
@@ -182,10 +221,38 @@ class GaleShapley:
 
             # Atualiza lista de projetos ativos para a próxima iteração
             active_projects = get_active_projects()
+
+            if collect_history:
+                new_proposals = self.proposals_history[start_proposals_len:]
+                proposals_edges = [(f"S{str(p["student"])}", f"P{str(p["project"])}") for p in new_proposals if p.get("type") == "active"]
+                temp_matches_edges = [(f"S{str(s)}", f"P{str(p)}") for s, p in self.temporary_matching.items()]
+                rejections_edges = [(f"S{str(s)}", f"P{str(p)}") for s, p in self.rejections]
+                final_matching_map = {f"S{str(s)}": f"P{str(p)}" for s, p in self.temporary_matching.items()}
+
+                matching_data.append({
+                    "iteration": iteration,
+                    "proposals": proposals_edges,
+                    "temporary_matches": temp_matches_edges,
+                    "rejections": rejections_edges,
+                    "final_matching": final_matching_map
+                })
+
             iteration += 1
 
         print(f"Algoritmo (Project-Optimal | Random={random_order}) convergiu em {iteration} iterações")
         self._finalize_matching()
+
+        if collect_history:
+            final_temp = {f"S{str(s)}": f"P{str(p)}" for s, p in self.temporary_matching.items()}
+            matching_data.append({
+                "iteration": iteration,
+                "proposals": [(f"S{str(p["student"])}", f"P{str(p["project"])}") for p in self.proposals_history if p.get("type")=="active"],
+                "temporary_matches": [(f"S{str(s)}", f"P{str(p)}") for s, p in self.temporary_matching.items()],
+                "rejections": [(f"S{str(s)}", f"P{str(p)}") for s, p in self.rejections],
+                "final_matching": final_temp
+            })
+            return self.matching, matching_data
+
         return self.matching
 
     # =========================================================================

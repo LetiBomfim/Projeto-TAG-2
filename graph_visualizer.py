@@ -5,9 +5,10 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 
 class GraphVisualizer:
-    def __init__(self, students, projects):
+    def __init__(self, students, projects, algorithm=None):
         self.students = students
         self.projects = projects
+        self.algorithm = algorithm
         self.iteration = 0
         self.max_iterations = 10
         self.matching_history = []
@@ -23,21 +24,22 @@ class GraphVisualizer:
     def create_bipartite_graph(self):
         G = nx.Graph()
 
-        students_nodes = [f"S{i}" for i in range(len(self.students))]
-        project_nodes = [f"P{i}" for i in range(len(self.projects))]
+        students_nodes = [f"S{student.code}" for student in self.students]
+        project_nodes = [f"P{project.code}" for project in self.projects]
 
         G.add_nodes_from(students_nodes, bipartite=0)
         G.add_nodes_from(project_nodes, bipartite=1)
 
         for student in self.students:
-            student_id = student["id"]
-            for project_id in student["preferences"]:
-                G.add_edge(f"S{student_id}", f"P{project_id}")
+            s_code = student.code
+            prefs = getattr(student, "preferences", []) or []
+            for project_id in prefs:
+                G.add_edge(f"S{s_code}", f"P{project_id}")
         
         return G, students_nodes, project_nodes
 
     def animate_matching(self, matching_data):
-        G, students_nodes, project_nodes = self.create_bipartite_graph
+        G, students_nodes, project_nodes = self.create_bipartite_graph()
 
         pos = nx.bipartite_layout(G, students_nodes, scale=2)
 
@@ -99,7 +101,7 @@ class GraphVisualizer:
             
             history_text = "Iterações Anteriores:\n"
             for i, prev_data in enumerate(matching_data[:iteration+1]):
-                history_text += f"Iteração {i+1}: {len(prev_data.get("proposals", []))} propostas\n"
+                history_text += f"Iteração {i+1}: {len(prev_data.get('proposals', []))} propostas\n"
             
             ax2.text(0.05, 0.95, history_text, transform=ax2.transAxes, fontsize=10, verticalalignment="top", family="monospace",
                     bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
